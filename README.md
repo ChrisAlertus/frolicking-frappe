@@ -1,13 +1,14 @@
 # LLM demos
 
-Two sets of demos:
-
 - `p1/` — Go programs for tokenization, KV-cache size, and streaming time-to-first-token. Tokenization uses [tiktoken-go](https://github.com/pkoukk/tiktoken-go), a Go port of OpenAI's tiktoken (`o200k_base` and `cl100k_base`, same BPE files). The other two programs use only the standard library.
 - `p2/` — support-triage themed demos in Go: `tokens_demo`, `context_math`, and `cost_calc` run offline; `stream_meter`, `temperature_demo`, and `structured_output` need a running server.
 - `p3/` — Go demos for the KV cache, standard library only: `kv_math` (bytes per token, offline) and `prefix_cache` (llama.cpp prompt-prefix reuse; needs a single-slot server, see its doc comment).
+- `p4/` — Go vector-search demos (see `p4/README.md`): `embed_rate`, `hybrid`, and `embed_words` need the embedding server; `real_bench`, `ann_bench`, and `fresh_filter` run on synthetic vectors offline.
+
+Each folder is self-contained: its own `setup.sh` / `teardown.sh` (`p1` has no teardown), `go.mod`, and `Dockerfile`, with pid/log files under `pN/.demo/`. Shared shell helpers live in `scripts/demo-lib.sh`, and every llama-server shares the model cache in `.demo/models`. The root `setup.sh` / `teardown.sh` just run every folder's script; run one folder's directly to set up only that part.
 
 ```bash
-./setup.sh
+./setup.sh        # or just one part: ./p2/setup.sh
 
 go -C p2 run ./cmd/tokens_demo          # chars vs tokens per sample
 go -C p2 run ./cmd/context_math         # how chat history inflates input tokens
@@ -18,18 +19,30 @@ go -C p2 run ./cmd/temperature_demo     # temp 0 vs 1.2, 10 answers each
 go -C p2 run ./cmd/structured_output    # prompt-only vs server-enforced schema
 
 go -C p3 run ./cmd/kv_math              # KV cache bytes per token
-go -C p3 run ./cmd/prefix_cache         # prefix reuse; needs the server from its doc comment
+go -C p3 run ./cmd/prefix_cache         # prefix reuse; needs ./p3/setup.sh's server
 
-./teardown.sh
+go -C p4 run ./cmd/ann_bench -n 20000   # exact vs HNSW vs IVF-Flat
+go -C p4 run ./cmd/fresh_filter -n 5000 -add 100 -delete 100
+
+./teardown.sh   # or just one part: ./p3/teardown.sh
 ```
 
-The image compiles static binaries with Chainguard's Go toolchain, then copies them into `cgr.dev/chainguard/static:latest`, which has no shell. Run `llama-server` on the laptop; the streaming program calls it from the container.
+Each image compiles static binaries with Chainguard's Go toolchain, then copies them into `cgr.dev/chainguard/static:latest`, which has no shell. Run `llama-server` on the laptop; programs in the container call it from there.
 
 ## Build
 
 ```bash
 docker build -t llm-demos ./p1
+docker build -t llm-demos-p2 ./p2
+docker build -t llm-demos-p3 ./p3
+docker build -t llm-demos-p4 ./p4
+
+docker run --rm llm-demos-p2
+docker run --rm llm-demos-p3
+docker run --rm llm-demos-p4 -n 20000
 ```
+
+`llm-demos-p4` with no flags runs `ann_bench` at 1,000,000 vectors (about 3.1 GB) and can be OOM-killed by Docker Desktop's default VM. Pass `-n`, or run the full bench on the laptop.
 
 ## tokenize_demo
 
@@ -53,16 +66,19 @@ Start llama.cpp's server on the laptop first. The helper scripts do this and
 clean up afterwards:
 
 ```bash
-./setup.sh    # go mod download, then start llama-server in the background
-./teardown.sh # stop it, delete the model cache and logs in .demo/
+./p2/setup.sh    # go mod download, then start the chat llama-server
+./p3/setup.sh    # go mod download, then start the single-slot prefix-cache server
+./p4/setup.sh    # go mod download, then start the embedding server
+./teardown.sh    # run every p*/teardown.sh, then delete the shared model cache
 ```
 
-`setup.sh` waits for the server to report healthy and prints the `BASE_URL`
-to use. It only ever manages the process it started; a server you launched
-yourself is left alone. Override the defaults with environment variables:
+Each `setup.sh` waits for its servers to report healthy and prints the URLs
+to use (`BASE_URL` for chat, `EMBED_URL` for embeddings). They only ever
+manage the processes they started; a server you launched yourself is left
+alone. Override the defaults with environment variables:
 
 ```bash
-MODEL=Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M PORT=8392 CONTEXT=8192 ./setup.sh
+MODEL=Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M PORT=8392 CONTEXT=8192 ./p2/setup.sh
 ```
 
 Or start it by hand, for example:
