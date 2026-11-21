@@ -21,13 +21,9 @@ for tool in go curl llama-server; do
 done
 
 (cd p1 && go mod download)
+(cd p2 && go mod download)
 
 mkdir -p "$DEMO_DIR"
-if command -v python3 >/dev/null && [[ ! -x "$DEMO_DIR/venv/bin/python" ]]; then
-    python3 -m venv "$DEMO_DIR/venv"
-    "$DEMO_DIR/venv/bin/pip" -q install -r requirements.txt
-    echo "python venv ready: $DEMO_DIR/venv/bin/python"
-fi
 
 if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     echo "llama-server already running (pid $(cat "$PID_FILE"))"

@@ -3,19 +3,18 @@
 Two sets of demos:
 
 - `p1/` — Go programs for tokenization, KV-cache size, and streaming time-to-first-token. Tokenization uses [tiktoken-go](https://github.com/pkoukk/tiktoken-go), a Go port of OpenAI's tiktoken (`o200k_base` and `cl100k_base`, same BPE files). The other two programs use only the standard library.
-- `p2/` — Python demos (support-triage themed): `tokens_demo.py`, `context_math.py`, and `cost_calc.py` run offline; `stream_meter.py`, `temperature_demo.py`, and `structured_output.py` need a running server. `setup.sh` creates a Python venv in `.demo/venv` with the packages from `requirements.txt`.
+- `p2/` — support-triage themed demos in Go: `tokens_demo`, `context_math`, and `cost_calc` run offline; `stream_meter`, `temperature_demo`, and `structured_output` need a running server.
 
 ```bash
 ./setup.sh
-PY=.demo/venv/bin/python
 
-$PY p2/tokens_demo.py          # chars vs tokens per sample
-$PY p2/context_math.py         # how chat history inflates input tokens
-$PY p2/cost_calc.py            # monthly cost per model / caching / batch
+go -C p2 run ./cmd/tokens_demo          # chars vs tokens per sample
+go -C p2 run ./cmd/context_math         # how chat history inflates input tokens
+go -C p2 run ./cmd/cost_calc            # monthly cost per model / caching / batch
 
-$PY p2/stream_meter.py         # TTFT and tokens/s for one triage call
-$PY p2/temperature_demo.py     # temp 0 vs 1.2, 10 answers each
-$PY p2/structured_output.py    # prompt-only vs server-enforced schema
+go -C p2 run ./cmd/stream_meter         # TTFT and tokens/s for one triage call
+go -C p2 run ./cmd/temperature_demo     # temp 0 vs 1.2, 10 answers each
+go -C p2 run ./cmd/structured_output    # prompt-only vs server-enforced schema
 
 ./teardown.sh
 ```
