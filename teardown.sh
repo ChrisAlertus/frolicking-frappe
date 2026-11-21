@@ -1,23 +1,14 @@
 #!/usr/bin/env bash
-# Stop the llama-server started by setup.sh and delete its model cache and
-# logs. Only kills the pid recorded in .demo/, never another server.
+# Tear down every demo folder by running each p*/teardown.sh, then delete
+# the shared model cache. Only pids recorded in the folders' .demo/ dirs
+# are stopped; a server you launched yourself is left alone.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-DEMO_DIR=".demo"
-PID_FILE="$DEMO_DIR/llama-server.pid"
-
-if [[ -f "$PID_FILE" ]]; then
-    pid=$(cat "$PID_FILE")
-    if kill -0 "$pid" 2>/dev/null; then
-        kill "$pid"
-        for _ in $(seq 1 30); do
-            kill -0 "$pid" 2>/dev/null || break
-            sleep 1
-        done
-        kill -9 "$pid" 2>/dev/null || true
-    fi
-fi
-
-rm -rf "$DEMO_DIR"
-echo "demo removed: server stopped, model cache + logs deleted"
+for teardown in p*/teardown.sh; do
+    [[ -f "$teardown" ]] || continue # no teardown needed, or literal glob
+    echo "== $teardown"
+    "./$teardown"
+done
+rm -rf .demo
+echo "demo removed: servers stopped, shared model cache deleted"
