@@ -1,13 +1,31 @@
 # LLM demos
 
-Small programs for tokenization, KV-cache size, and streaming time-to-first-token. Tokenization uses [tiktoken-go](https://github.com/pkoukk/tiktoken-go), a Go port of OpenAI's tiktoken (`o200k_base` and `cl100k_base`, same BPE files). The other two programs use only the standard library.
+Two sets of demos:
+
+- `p1/` — Go programs for tokenization, KV-cache size, and streaming time-to-first-token. Tokenization uses [tiktoken-go](https://github.com/pkoukk/tiktoken-go), a Go port of OpenAI's tiktoken (`o200k_base` and `cl100k_base`, same BPE files). The other two programs use only the standard library.
+- `p2/` — Python demos (support-triage themed): `tokens_demo.py`, `context_math.py`, and `cost_calc.py` run offline; `stream_meter.py`, `temperature_demo.py`, and `structured_output.py` need a running server. `setup.sh` creates a Python venv in `.demo/venv` with the packages from `requirements.txt`.
+
+```bash
+./setup.sh
+PY=.demo/venv/bin/python
+
+$PY p2/tokens_demo.py          # chars vs tokens per sample
+$PY p2/context_math.py         # how chat history inflates input tokens
+$PY p2/cost_calc.py            # monthly cost per model / caching / batch
+
+$PY p2/stream_meter.py         # TTFT and tokens/s for one triage call
+$PY p2/temperature_demo.py     # temp 0 vs 1.2, 10 answers each
+$PY p2/structured_output.py    # prompt-only vs server-enforced schema
+
+./teardown.sh
+```
 
 The image compiles static binaries with Chainguard's Go toolchain, then copies them into `cgr.dev/chainguard/static:latest`, which has no shell. Run `llama-server` on the laptop; the streaming program calls it from the container.
 
 ## Build
 
 ```bash
-docker build -t llm-demos .
+docker build -t llm-demos ./p1
 ```
 
 ## tokenize_demo
@@ -15,26 +33,42 @@ docker build -t llm-demos .
 The first run downloads tiktoken encoding files, so the container needs network access.
 
 ```bash
-go run ./cmd/tokenize_demo
+go -C p1 run ./cmd/tokenize_demo
 docker run --rm llm-demos
 ```
 
 ## kv_cache_math
 
 ```bash
-go run ./cmd/kv_cache_math
+go -C p1 run ./cmd/kv_cache_math
 docker run --rm --entrypoint /usr/bin/kv_cache_math llm-demos
 ```
 
 ## stream_ttft
 
-Start llama.cpp's server on the laptop first, for example:
+Start llama.cpp's server on the laptop first. The helper scripts do this and
+clean up afterwards:
+
+```bash
+./setup.sh    # go mod download, then start llama-server in the background
+./teardown.sh # stop it, delete the model cache and logs in .demo/
+```
+
+`setup.sh` waits for the server to report healthy and prints the `BASE_URL`
+to use. It only ever manages the process it started; a server you launched
+yourself is left alone. Override the defaults with environment variables:
+
+```bash
+MODEL=Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M PORT=8392 CONTEXT=8192 ./setup.sh
+```
+
+Or start it by hand, for example:
 
 ```bash
 llama-server -hf unsloth/Qwen3.5-4B-GGUF:Q4_K_M \ # download GGUF model directly from Hugging Face ~ 4GB memory
   -ngl 99 \ # Offload 100% of the model layers to the M4's GPU via Metal
   -fa on \ # enable flash attention to cut memory bandwidth usage
-  -c 32768 \ # Allocate a 32K token context window
+  -c 8192 \ # Allocate an 8K token context window
   --port 8080
 ```
 
@@ -42,7 +76,7 @@ Inside the container, `127.0.0.1` is the container, not the laptop. On Docker De
 
 ```bash
 BASE_URL=http://127.0.0.1:8080/v1 MODEL=local \
-  go run ./cmd/stream_ttft "Explain what a KV cache is in three sentences."
+  go -C p1 run ./cmd/stream_ttft "Explain what a KV cache is in three sentences."
 
 docker run --rm --entrypoint /usr/bin/stream_ttft \
   -e BASE_URL=http://host.docker.internal:8080/v1 \
@@ -56,7 +90,7 @@ A hosted OpenAI-compatible API works the same way. Export `API_KEY` in the shell
 export API_KEY  # already set in the environment
 
 BASE_URL=https://api.openai.com/v1 MODEL=gpt-4o-mini \
-  go run ./cmd/stream_ttft
+  go -C p1 run ./cmd/stream_ttft
 
 docker run --rm --entrypoint /usr/bin/stream_ttft \
   -e BASE_URL=https://api.openai.com/v1 \
