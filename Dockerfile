@@ -1,33 +1,22 @@
 # syntax=docker/dockerfile:1
 
-# latest-dev ships uv, plus a shell, and is only used to install packages.
-# The runtime stage is the hardened image: no shell and no package manager.
-FROM cgr.dev/chainguard/python:latest-dev AS build
+# latest-dev has the Go toolchain and a shell, and is only used to compile.
+# The runtime stage is Chainguard's distroless static image: no shell.
+FROM cgr.dev/chainguard/go:latest-dev AS build
 
 USER root
-WORKDIR /scripts
+WORKDIR /src
 
-# tiktoken: tokenize_demo.py (downloads encoding files on first run)
-# requests: stream_ttft.py
-# kv_cache_math.py uses only the standard library
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+COPY go.mod go.sum ./
+RUN go mod download
 
-RUN uv venv /scripts/.venv
-ENV PATH="/scripts/.venv/bin:$PATH"
-RUN uv pip install --no-cache tiktoken requests
+COPY . .
+ENV CGO_ENABLED=0
+RUN go build -o /out/tokenize_demo ./cmd/tokenize_demo \
+    && go build -o /out/stream_ttft ./cmd/stream_ttft \
+    && go build -o /out/kv_cache_math ./cmd/kv_cache_math
 
-FROM cgr.dev/chainguard/python:latest
+FROM cgr.dev/chainguard/static:latest
 
-WORKDIR /scripts
-
-COPY --from=build --chown=nonroot:nonroot /scripts/.venv /scripts/.venv
-COPY --chown=nonroot:nonroot tokenize_demo.py stream_ttft.py kv_cache_math.py ./
-
-ENV PATH="/scripts/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
-
-# The base entrypoint is the absolute path /usr/bin/python, which ignores
-# PATH and would miss the venv. Clear it so `python <script>` still works.
-ENTRYPOINT []
-CMD ["python", "tokenize_demo.py"]
+COPY --from=build /out/ /usr/bin/
+ENTRYPOINT ["/usr/bin/tokenize_demo"]
