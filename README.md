@@ -4,6 +4,7 @@ Two sets of demos:
 
 - `p1/` — Go programs for tokenization, KV-cache size, and streaming time-to-first-token. Tokenization uses [tiktoken-go](https://github.com/pkoukk/tiktoken-go), a Go port of OpenAI's tiktoken (`o200k_base` and `cl100k_base`, same BPE files). The other two programs use only the standard library.
 - `p2/` — Python demos (support-triage themed): `tokens_demo.py`, `context_math.py`, and `cost_calc.py` run offline; `stream_meter.py`, `temperature_demo.py`, and `structured_output.py` need a running server. `setup.sh` creates a Python venv in `.demo/venv` with the packages from `requirements.txt`.
+- `p3/` — Python demos for the KV cache: `kv_math.py` (bytes per token, offline) and `prefix_cache.py` (llama.cpp prompt-prefix reuse; needs a single-slot server, see its docstring). The root `Dockerfile` runs the Python demos on Chainguard's Python image.
 
 ```bash
 ./setup.sh
@@ -17,6 +18,9 @@ $PY p2/stream_meter.py         # TTFT and tokens/s for one triage call
 $PY p2/temperature_demo.py     # temp 0 vs 1.2, 10 answers each
 $PY p2/structured_output.py    # prompt-only vs server-enforced schema
 
+$PY p3/kv_math.py              # KV cache bytes per token
+$PY p3/prefix_cache.py         # prefix reuse; needs the server from its docstring
+
 ./teardown.sh
 ```
 
@@ -26,6 +30,25 @@ The image compiles static binaries with Chainguard's Go toolchain, then copies t
 
 ```bash
 docker build -t llm-demos ./p1
+```
+
+The root `Dockerfile` packages the Python demos on Chainguard's Python
+image (`latest-dev` installs the venv, `latest` runs it):
+
+```bash
+docker build -t llm-demos-py .
+docker run --rm llm-demos-py p3/kv_math.py
+```
+
+Server-backed demos reach the laptop's llama-server via
+`host.docker.internal`:
+
+```bash
+docker run --rm -e BASE_URL=http://host.docker.internal:8080/v1 \
+  llm-demos-py p2/stream_meter.py
+
+docker run --rm -e BASE_URL=http://host.docker.internal:8393 \
+  llm-demos-py p3/prefix_cache.py
 ```
 
 ## tokenize_demo
@@ -59,7 +82,7 @@ to use. It only ever manages the process it started; a server you launched
 yourself is left alone. Override the defaults with environment variables:
 
 ```bash
-MODEL=Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M PORT=8392 CONTEXT=8192 ./setup.sh
+MODEL=Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M PORT=8392 CONTEXT=16384 ./setup.sh
 ```
 
 Or start it by hand, for example:
@@ -68,7 +91,7 @@ Or start it by hand, for example:
 llama-server -hf unsloth/Qwen3.5-4B-GGUF:Q4_K_M \ # download GGUF model directly from Hugging Face ~ 4GB memory
   -ngl 99 \ # Offload 100% of the model layers to the M4's GPU via Metal
   -fa on \ # enable flash attention to cut memory bandwidth usage
-  -c 8192 \ # Allocate an 8K token context window
+  -c 16384 \ # Allocate a 16K token context window
   --port 8080
 ```
 

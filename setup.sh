@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 PORT="${PORT:-8080}"
 MODEL="${MODEL:-unsloth/Qwen3.5-4B-GGUF:Q4_K_M}"
-CONTEXT="${CONTEXT:-8192}"
+CONTEXT="${CONTEXT:-16384}"
 DEMO_DIR=".demo"
 PID_FILE="$DEMO_DIR/llama-server.pid"
 LOG_FILE="$DEMO_DIR/llama-server.log"
