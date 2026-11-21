@@ -28,9 +28,15 @@ laptop's server via `host.docker.internal`):
 
 ```bash
 docker build -t llm-demos-p4 ./p4
-docker run --rm llm-demos-p4 ann_bench.py
+docker run --rm llm-demos-p4 ann_bench.py --n 20000
 docker run --rm -e EMBED_URL=http://host.docker.internal:8395/v1 llm-demos-p4 hybrid.py
 ```
+
+Full-scale benches can exceed Docker Desktop's default ~2 GB VM and get
+OOM-killed (exit 137) — `ann_bench.py` at 1M vectors alone needs ≈ 3.1 GB.
+Run full-scale benches in the laptop venv instead
+(`.demo/venv/bin/python ann_bench.py`), pass a smaller `--n` in Docker, or
+raise the VM limit under Settings → Resources → Memory.
 
 `llama-server` comes from [llama.cpp](https://github.com/ggml-org/llama.cpp). The model is [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) (GGUF Q8_0). Documents must be prefixed with `search_document: ` and questions with `search_query: `.
 
