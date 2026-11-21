@@ -4,6 +4,7 @@ Two sets of demos:
 
 - `p1/` — Go programs for tokenization, KV-cache size, and streaming time-to-first-token. Tokenization uses [tiktoken-go](https://github.com/pkoukk/tiktoken-go), a Go port of OpenAI's tiktoken (`o200k_base` and `cl100k_base`, same BPE files). The other two programs use only the standard library.
 - `p2/` — support-triage themed demos in Go: `tokens_demo`, `context_math`, and `cost_calc` run offline; `stream_meter`, `temperature_demo`, and `structured_output` need a running server.
+- `p3/` — Go demos for the KV cache, standard library only: `kv_math` (bytes per token, offline) and `prefix_cache` (llama.cpp prompt-prefix reuse; needs a single-slot server, see its doc comment).
 
 ```bash
 ./setup.sh
@@ -15,6 +16,9 @@ go -C p2 run ./cmd/cost_calc            # monthly cost per model / caching / bat
 go -C p2 run ./cmd/stream_meter         # TTFT and tokens/s for one triage call
 go -C p2 run ./cmd/temperature_demo     # temp 0 vs 1.2, 10 answers each
 go -C p2 run ./cmd/structured_output    # prompt-only vs server-enforced schema
+
+go -C p3 run ./cmd/kv_math              # KV cache bytes per token
+go -C p3 run ./cmd/prefix_cache         # prefix reuse; needs the server from its doc comment
 
 ./teardown.sh
 ```
