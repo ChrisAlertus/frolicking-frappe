@@ -1,0 +1,5 @@
+numpy
+faiss-cpu
+hnswlib
+rank_bm25
+requests
